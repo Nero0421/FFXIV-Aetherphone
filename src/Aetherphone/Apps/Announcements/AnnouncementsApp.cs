@@ -108,6 +108,12 @@ internal sealed partial class AnnouncementsApp : IPhoneApp
 
     private void TickRefresh()
     {
+        if (store.RealtimePushActive)
+        {
+            sinceRefresh = 0f;
+            return;
+        }
+
         sinceRefresh += ImGui.GetIO().DeltaTime;
         if (sinceRefresh < RefreshSeconds || store.Loading)
         {

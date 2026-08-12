@@ -10,6 +10,7 @@ internal sealed class ModerationNoticeService : IDisposable
 {
     private static readonly TimeSpan ForegroundPollInterval = TimeSpan.FromSeconds(120);
     private static readonly TimeSpan BackgroundPollInterval = TimeSpan.FromSeconds(300);
+    private static readonly TimeSpan RealtimeBackstopInterval = TimeSpan.FromMinutes(10);
 
     private readonly AethernetSession session;
     private readonly AccountClient client;
@@ -30,6 +31,7 @@ internal sealed class ModerationNoticeService : IDisposable
         this.framework = framework;
         this.signals = signals;
         cadence = new PollCadence(visibility, ForegroundPollInterval, BackgroundPollInterval);
+        cadence.StretchWhen(() => signals.RealtimeActive, RealtimeBackstopInterval);
         signals.SocialPinged += cadence.RequestImmediate;
         session.Changed += OnSessionChanged;
         framework.Update += OnFrameworkTick;

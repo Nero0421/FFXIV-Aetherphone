@@ -29,7 +29,9 @@ internal sealed class DirectMessagesStore : ChatThreadStoreBase<ChatMessageDto, 
         this.peers = peers;
         this.signals = signals;
         signals.ChatPinged += OnChatPinged;
+        signals.ChatTypingPinged += NoteTypingPing;
         signals.ConnectedChanged += OnRealtimeConnected;
+        InboxCadence.StretchWhen(() => signals.RealtimeActive, RealtimeInboxBackstop);
     }
 
     private void OnRealtimeConnected(bool active)

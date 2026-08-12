@@ -32,7 +32,9 @@ internal sealed class GramDmStore : ChatThreadStoreBase<GramMessageDto, GramThre
         this.social = social;
         this.signals = signals;
         signals.GramPinged += OnGramPinged;
+        signals.GramTypingPinged += NoteTypingPing;
         signals.ConnectedChanged += OnRealtimeConnected;
+        InboxCadence.StretchWhen(() => signals.RealtimeActive, RealtimeInboxBackstop);
     }
 
     private void OnRealtimeConnected(bool active)

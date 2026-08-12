@@ -15,6 +15,7 @@ internal sealed class MusterStore : IDisposable
 
     private static readonly TimeSpan ForegroundPollInterval = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan BackgroundPollInterval = TimeSpan.FromSeconds(120);
+    private static readonly TimeSpan RealtimeBackstopInterval = TimeSpan.FromMinutes(5);
 
     private readonly AethernetSession session;
     private readonly MusterClient client;
@@ -65,6 +66,7 @@ internal sealed class MusterStore : IDisposable
         this.signals = signals;
         this.gate = gate;
         cadence = new PollCadence(visibility, ForegroundPollInterval, BackgroundPollInterval);
+        cadence.StretchWhen(() => signals.RealtimeActive, RealtimeBackstopInterval);
         session.Changed += OnSessionChanged;
         signals.MusterPinged += OnMusterPinged;
         signals.ConnectedChanged += OnRealtimeConnected;

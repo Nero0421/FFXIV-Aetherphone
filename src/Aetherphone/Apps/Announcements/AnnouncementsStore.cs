@@ -14,6 +14,7 @@ internal sealed class AnnouncementsStore : IDisposable
     public const string AppId = "announcements";
 
     private static readonly TimeSpan BackgroundRefreshInterval = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan RealtimeBackstopInterval = TimeSpan.FromMinutes(30);
 
     private readonly AethernetSession session;
     private readonly AnnouncementsClient client;
@@ -49,6 +50,8 @@ internal sealed class AnnouncementsStore : IDisposable
     }
 
     public bool IsSignedIn => session.IsSignedIn;
+
+    public bool RealtimePushActive => signals.RealtimeActive;
 
     public AnnouncementDto[] Announcements => announcements;
 
@@ -203,7 +206,8 @@ internal sealed class AnnouncementsStore : IDisposable
         }
 
         var now = DateTime.UtcNow;
-        if (!pingRefreshRequested && now - lastBackgroundRefreshUtc < BackgroundRefreshInterval)
+        var interval = signals.RealtimeActive ? RealtimeBackstopInterval : BackgroundRefreshInterval;
+        if (!pingRefreshRequested && now - lastBackgroundRefreshUtc < interval)
         {
             return;
         }

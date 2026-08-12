@@ -47,9 +47,9 @@ internal sealed class PollsApp : IPhoneApp
     private INavigator navigation = null!;
     private float sinceRefresh;
 
-    public PollsApp(AethernetSession session, PollsClient client, AppInstaller installer)
+    public PollsApp(AethernetSession session, PollsClient client, AppInstaller installer, RealtimeSignalBus signals)
     {
-        store = new PollsStore(session, client, installer.Gate("polls"));
+        store = new PollsStore(session, client, installer.Gate("polls"), signals);
     }
 
     public void OnOpened()
@@ -115,6 +115,12 @@ internal sealed class PollsApp : IPhoneApp
 
     private void TickRefresh()
     {
+        if (store.RealtimePushActive)
+        {
+            sinceRefresh = 0f;
+            return;
+        }
+
         sinceRefresh += ImGui.GetIO().DeltaTime;
         if (sinceRefresh < RefreshSeconds || store.Loading)
         {

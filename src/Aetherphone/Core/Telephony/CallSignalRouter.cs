@@ -71,6 +71,30 @@ internal sealed class CallSignalRouter : IDisposable
             case SignalType.AnnouncePing:
                 signals.PublishAnnouncements();
                 return;
+            case SignalType.PollPing:
+                signals.PublishPolls();
+                return;
+            case SignalType.ChatTyping:
+                if (message.ContentId is { Length: > 0 } chatTypingThreadId)
+                {
+                    signals.PublishChatTyping(chatTypingThreadId);
+                }
+
+                return;
+            case SignalType.VelvetTyping:
+                if (message.ContentId is { Length: > 0 } velvetTypingThreadId)
+                {
+                    signals.PublishVelvetTyping(velvetTypingThreadId);
+                }
+
+                return;
+            case SignalType.GramTyping:
+                if (message.ContentId is { Length: > 0 } gramTypingThreadId)
+                {
+                    signals.PublishGramTyping(gramTypingThreadId);
+                }
+
+                return;
             case SignalType.ContentRemoved:
                 if (message.ContentId is { Length: > 0 } removedContentId)
                 {

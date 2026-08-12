@@ -112,9 +112,11 @@ internal sealed class VelvetStore : ChatThreadStoreBase<VelvetMessageDto, Velvet
         this.signals = signals;
         this.notInterestedArchive = notInterestedArchive;
         signals.VelvetPinged += OnVelvetPinged;
+        signals.VelvetTypingPinged += NoteTypingPing;
         signals.SocialPinged += OnSocialPinged;
         signals.ConnectedChanged += OnRealtimeConnected;
         signals.ContentRemoved += OnContentRemoved;
+        InboxCadence.StretchWhen(() => signals.RealtimeActive, RealtimeInboxBackstop);
     }
 
     private void OnContentRemoved(ContentRemovalSignal removal)

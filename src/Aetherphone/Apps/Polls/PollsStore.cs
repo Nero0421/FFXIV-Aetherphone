@@ -1,3 +1,4 @@
+using Aetherphone.Core;
 using Aetherphone.Core.Aethernet;
 using Aetherphone.Core.Aethernet.Clients;
 using Aetherphone.Core.Aethernet.Contracts;
@@ -9,10 +10,12 @@ namespace Aetherphone.Apps.Polls;
 internal sealed class PollsStore : IDisposable
 {
     private static readonly TimeSpan BackgroundRefreshInterval = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan RealtimeBackstopInterval = TimeSpan.FromMinutes(30);
 
     private readonly AethernetSession session;
     private readonly PollsClient client;
     private readonly AppGate gate;
+    private readonly RealtimeSignalBus signals;
     private readonly StoreWork work = new StoreWork("Polls");
 
     private volatile PollDto[] polls = Array.Empty<PollDto>();
@@ -21,17 +24,36 @@ internal sealed class PollsStore : IDisposable
     private volatile bool pagedDeeper;
     private volatile bool loading;
     private volatile bool loadedOnce;
+    private volatile bool pingRefreshRequested;
     private DateTime lastBackgroundRefreshUtc = DateTime.MinValue;
 
-    public PollsStore(AethernetSession session, PollsClient client, AppGate gate)
+    public PollsStore(AethernetSession session, PollsClient client, AppGate gate, RealtimeSignalBus signals)
     {
         this.session = session;
         this.client = client;
         this.gate = gate;
+        this.signals = signals;
+        signals.PollsPinged += OnPollsPinged;
+        signals.ConnectedChanged += OnRealtimeConnected;
         Plugin.Framework.Update += OnFrameworkUpdate;
     }
 
+    private void OnPollsPinged()
+    {
+        pingRefreshRequested = true;
+    }
+
+    private void OnRealtimeConnected(bool active)
+    {
+        if (active)
+        {
+            pingRefreshRequested = true;
+        }
+    }
+
     public bool IsSignedIn => session.IsSignedIn;
+
+    public bool RealtimePushActive => signals.RealtimeActive;
 
     public PollDto[] Polls => polls;
 
@@ -152,11 +174,13 @@ internal sealed class PollsStore : IDisposable
         }
 
         var now = DateTime.UtcNow;
-        if (now - lastBackgroundRefreshUtc < BackgroundRefreshInterval)
+        var interval = signals.RealtimeActive ? RealtimeBackstopInterval : BackgroundRefreshInterval;
+        if (!pingRefreshRequested && now - lastBackgroundRefreshUtc < interval)
         {
             return;
         }
 
+        pingRefreshRequested = false;
         lastBackgroundRefreshUtc = now;
         Refresh();
     }

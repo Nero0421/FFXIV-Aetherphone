@@ -94,7 +94,8 @@ The verify endpoints answer expected failures inside the body rather than with H
 `CallSignalRouter` dispatches each `CallControl.Type` (constants in src/Aetherphone/Core/Telephony/Contracts/Signals.cs). Two families exist:
 
 - Call signaling: `call.incoming`, `call.roster`, `call.declined`, `call.unavailable`, `call.ended`, `call.handled`, forwarded to `CallHub` (see [Calls](#calls) below).
-- Notification pings: `chat.ping`, `velvet.ping`, `gram.ping`, `social.ping`, `muster.ping`, `announce.ping`, and `content.removed`, published onto `RealtimeSignalBus`.
+- Notification pings: `chat.ping`, `velvet.ping`, `gram.ping`, `social.ping`, `muster.ping`, `announce.ping`, `poll.ping`, and `content.removed`, published onto `RealtimeSignalBus`.
+- Typing pings: `chat.typing`, `velvet.typing`, `gram.typing`. `ContentId` carries the thread key (the conversation id for chat, the typing user's id for velvet and gram). The receiving store flips its typing indicator on and lets it lapse 6 seconds after the last ping; there is no stopped-typing signal. While the socket is live the thread view stops issuing typing GETs entirely and stretches its message poll by `PushActivePollMultiplier`.
 
 `RealtimeSignalBus` is a plain in-process event hub. Stores subscribe to the ping that concerns them (`ChatPinged`, `SocialPinged`, ...) and react by refreshing immediately. `ContentRemoved` carries a `ContentRemovalSignal` so every phone purges moderated content without waiting for a poll.
 
@@ -106,15 +107,19 @@ The socket runs whenever a session is signed in. `CallHub.Reconcile` (src/Aether
 
 ### The polling backstop
 
-Realtime is an optimization, never the only path. Stores poll on a `PollCadence` (src/Aetherphone/Core/PollCadence.cs), which picks a foreground or background interval based on `PhoneVisibility` and supports `RequestImmediate` for realtime pings. Verified examples:
+Realtime is an optimization, never the only path. Stores poll on a `PollCadence` (src/Aetherphone/Core/PollCadence.cs), which picks a foreground or background interval based on `PhoneVisibility` and supports `RequestImmediate` for realtime pings. Cadences whose data is fully covered by a ping also call `StretchWhen`: while the websocket is live the interval stretches to a long backstop, and the moment the socket drops the normal cadence returns and `ConnectedChanged` triggers a catch-up poll. Verified examples:
 
-| Service | Foreground | Background |
-| --- | --- | --- |
-| `SocialNotificationService` (src/Aetherphone/Core/Notifications/SocialNotificationService.cs) | 60 s | 120 s |
-| `ChatThreadStoreBase` inbox (src/Aetherphone/Core/Message/ChatThreadStoreBase.cs) | 60 s | 120 s |
-| `AccountStateService` (src/Aetherphone/Core/Aethernet/AccountStateService.cs) | 120 s | 300 s |
+| Service | Foreground | Background | Live-socket backstop |
+| --- | --- | --- | --- |
+| `SocialNotificationService` (src/Aetherphone/Core/Notifications/SocialNotificationService.cs) | 60 s | 120 s | 300 s |
+| `ChatThreadStoreBase` inbox (src/Aetherphone/Core/Message/ChatThreadStoreBase.cs) | 60 s | 120 s | 300 s |
+| `MusterStore` (src/Aetherphone/Core/Muster/MusterStore.cs) | 60 s | 120 s | 300 s |
+| `ModerationNoticeService` (src/Aetherphone/Core/Moderation/ModerationNoticeService.cs) | 120 s | 300 s | 600 s |
+| `AccountStateService` (src/Aetherphone/Core/Aethernet/AccountStateService.cs) | 120 s | 300 s | none, no ping covers `/me` |
 
-So even with a dead websocket, notifications arrive within roughly two minutes.
+`PollsStore` and `AnnouncementsStore` follow the same idea with their own flags: 5 minute timers that stretch to 30 minutes while `poll.ping` and `announce.ping` are flowing, and 30 second view polls that stop entirely while the socket is live.
+
+So even with a dead websocket, notifications arrive within roughly two minutes; with a live one, the pings carry the updates and polling drops to a slow safety net.
 
 ## Calls
 

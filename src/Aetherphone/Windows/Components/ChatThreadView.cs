@@ -68,7 +68,7 @@ internal abstract class ChatThreadView<TMessage, TThread> : IDisposable, IChatTr
     private volatile string? pendingVoicePlay;
     private TMessage[] transcriptSource = Array.Empty<TMessage>();
     private TranscriptMessage[] transcriptCache = Array.Empty<TranscriptMessage>();
-    private const float PushActivePollMultiplier = 3f;
+    private const float PushActivePollMultiplier = 12f;
     private const int ResumeFrameGap = 3;
 
     private float sinceThreadPoll;
@@ -406,7 +406,7 @@ internal abstract class ChatThreadView<TMessage, TThread> : IDisposable, IChatTr
         PumpPendingVoice();
         var delta = ImGui.GetIO().DeltaTime;
         sinceTypingPoll += delta;
-        if (sinceTypingPoll >= threadPollSeconds)
+        if (!store.RealtimePushActive && sinceTypingPoll >= threadPollSeconds)
         {
             sinceTypingPoll = 0f;
             store.RefreshTyping(threadId);

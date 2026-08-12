@@ -27,6 +27,8 @@ internal abstract class ChatThreadStoreBase<TMessage, TThread> : IDisposable
     private static readonly TimeSpan VaultRetryInterval = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan KeyStatusRetryInterval = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan ThreadReopenCooldown = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan TypingPingWindow = TimeSpan.FromSeconds(6);
+    protected static readonly TimeSpan RealtimeInboxBackstop = TimeSpan.FromMinutes(5);
 
     protected readonly AethernetSession session;
     protected readonly SafetyClient safety;
@@ -67,6 +69,7 @@ internal abstract class ChatThreadStoreBase<TMessage, TThread> : IDisposable
     private DateTime pollBackoffUntilUtc = DateTime.MinValue;
     private volatile bool sending;
     private volatile bool otherTyping;
+    private DateTime typingPingUntilUtc = DateTime.MinValue;
 
     private volatile bool inboxPolling;
     private volatile bool threadRefreshPending;
@@ -121,6 +124,7 @@ internal abstract class ChatThreadStoreBase<TMessage, TThread> : IDisposable
         olderCursor = null;
         hasMoreOlder = false;
         otherTyping = false;
+        typingPingUntilUtc = DateTime.MinValue;
         inboxPrimed = false;
         threadRefreshPending = false;
         currentKeyStatus = ChatKeyStatus.None;
@@ -384,6 +388,7 @@ internal abstract class ChatThreadStoreBase<TMessage, TThread> : IDisposable
 
         EnsureVaultRefreshed();
         var now = DateTime.UtcNow;
+        ExpireTypingPing(now);
         EnsureCurrentThreadKeysFresh(now);
         ResumePendingThreadOpen(now);
         ConsumePendingThreadRefresh(now);
@@ -640,6 +645,7 @@ internal abstract class ChatThreadStoreBase<TMessage, TThread> : IDisposable
         hasMoreOlder = false;
         loadingOlder = false;
         otherTyping = false;
+        typingPingUntilUtc = DateTime.MinValue;
         currentKeyStatus = ChatKeyStatus.None;
         lastKeyStatusUtc = DateTime.UtcNow;
         BeginThreadOpen(id);
@@ -832,6 +838,28 @@ internal abstract class ChatThreadStoreBase<TMessage, TThread> : IDisposable
     {
         var byTime = MessageTimeOf(left).CompareTo(MessageTimeOf(right));
         return byTime != 0 ? byTime : string.CompareOrdinal(left.Id, right.Id);
+    }
+
+    public void NoteTypingPing(string threadId)
+    {
+        if (currentThreadId != threadId)
+        {
+            return;
+        }
+
+        otherTyping = true;
+        typingPingUntilUtc = DateTime.UtcNow + TypingPingWindow;
+    }
+
+    private void ExpireTypingPing(DateTime now)
+    {
+        if (typingPingUntilUtc == DateTime.MinValue || now < typingPingUntilUtc)
+        {
+            return;
+        }
+
+        typingPingUntilUtc = DateTime.MinValue;
+        otherTyping = false;
     }
 
     public void SendTyping(string id)

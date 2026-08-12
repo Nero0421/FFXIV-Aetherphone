@@ -13,6 +13,7 @@ internal sealed class SocialNotificationService : IDisposable
 {
     private static readonly TimeSpan ForegroundPollInterval = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan BackgroundPollInterval = TimeSpan.FromSeconds(120);
+    private static readonly TimeSpan RealtimeBackstopInterval = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan AckRetryInterval = TimeSpan.FromSeconds(15);
 
     private static readonly string[] ServedApps =
@@ -56,6 +57,7 @@ internal sealed class SocialNotificationService : IDisposable
         this.signals = signals;
         acks = new NotificationAckQueue(configuration.PendingNotificationAcks, configuration.Save);
         cadence = new PollCadence(visibility, ForegroundPollInterval, BackgroundPollInterval);
+        cadence.StretchWhen(() => signals.RealtimeActive, RealtimeBackstopInterval);
         signals.SocialPinged += cadence.RequestImmediate;
         signals.ConnectedChanged += OnRealtimeConnected;
         session.Changed += OnSessionChanged;

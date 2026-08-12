@@ -5,6 +5,8 @@ internal sealed class PollCadence
     private readonly PhoneVisibility visibility;
     private readonly TimeSpan foregroundInterval;
     private readonly TimeSpan backgroundInterval;
+    private Func<bool>? stretchWhen;
+    private TimeSpan stretchedInterval;
     private DateTime lastPollUtc = DateTime.MinValue;
     private volatile bool immediate;
 
@@ -15,7 +17,24 @@ internal sealed class PollCadence
         this.backgroundInterval = backgroundInterval;
     }
 
-    public TimeSpan CurrentInterval => visibility.IsVisible ? foregroundInterval : backgroundInterval;
+    public TimeSpan CurrentInterval
+    {
+        get
+        {
+            if (stretchWhen?.Invoke() == true)
+            {
+                return stretchedInterval;
+            }
+
+            return visibility.IsVisible ? foregroundInterval : backgroundInterval;
+        }
+    }
+
+    public void StretchWhen(Func<bool> condition, TimeSpan interval)
+    {
+        stretchWhen = condition;
+        stretchedInterval = interval;
+    }
 
     public void RequestImmediate()
     {
