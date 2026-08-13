@@ -76,6 +76,8 @@ internal sealed partial class VelvetShell
             {
                 Gap(10f);
                 feedVirtualizer.BeginFrame(store.FeedSource);
+                var viewportTop = ImGui.GetWindowPos().Y;
+                store.BeginImpressions(viewportTop, viewportTop + ImGui.GetWindowSize().Y, ImGui.GetIO().DeltaTime);
                 for (var index = 0; index < feed.Length; index++)
                 {
                     if (feedVirtualizer.Skip(feed[index].Id))
@@ -83,7 +85,9 @@ internal sealed partial class VelvetShell
                         continue;
                     }
 
+                    var rowTop = ImGui.GetCursorScreenPos().Y;
                     DrawPostCard(feed[index], width);
+                    store.ObserveImpression(feed[index].Id, rowTop, ImGui.GetCursorScreenPos().Y);
                     feedVirtualizer.Record(feed[index].Id);
                 }
 
@@ -201,7 +205,7 @@ internal sealed partial class VelvetShell
         else if (!overRing && UiInteract.Click(new Vector2(innerX, nameTop),
                      new Vector2(headerTextRight, nameTop + headerBlock)))
         {
-            OpenProfile(entry.OwnerId);
+            OpenProfileFromPost(entry.OwnerId, entry.Id);
         }
 
         var moreCenter = new Vector2(origin.X + width - pad - 6f * scale, avatarCenter.Y);
@@ -303,6 +307,7 @@ internal sealed partial class VelvetShell
 
     private void OpenPostDetail(string postId)
     {
+        store.ReportFeedSignal(postId, FeedSignalKinds.DetailOpen);
         store.EnsurePost(postId);
         router.Push(VelvetView.PostDetail(postId));
     }

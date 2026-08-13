@@ -151,6 +151,7 @@ internal sealed partial class AethergramApp
         else if (ui.PillButton(buttonRect, Loc.T(L.Aethergram.Send), true))
         {
             dmStore.SendPostShare(userId, postId);
+            store.ReportFeedSignal(postId, FeedSignalKinds.Send);
             shareSentUserIds.Add(userId);
         }
 

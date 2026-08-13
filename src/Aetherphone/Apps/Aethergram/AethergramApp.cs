@@ -257,6 +257,7 @@ internal sealed partial class AethergramApp : IPhoneApp
 
     public void OnClosed()
     {
+        store.FlushFeedSignals();
         threadView.OnAppClosed();
         router.Reset();
         avatarLightbox.Reset();
@@ -798,6 +799,8 @@ internal sealed partial class AethergramApp : IPhoneApp
             {
                 ImGui.Dummy(new Vector2(0f, 4f * UiScale.Current));
                 feedVirtualizer.BeginFrame(store.FeedSource(scope));
+                var viewportTop = ImGui.GetWindowPos().Y;
+                store.BeginImpressions(viewportTop, viewportTop + ImGui.GetWindowSize().Y, ImGui.GetIO().DeltaTime);
                 for (var index = 0; index < snapshot.Length; index++)
                 {
                     var post = snapshot[index];
@@ -807,7 +810,9 @@ internal sealed partial class AethergramApp : IPhoneApp
                         continue;
                     }
 
+                    var rowTop = ImGui.GetCursorScreenPos().Y;
                     DrawGramCard(post);
+                    store.ObserveImpression(post.Id, rowTop, ImGui.GetCursorScreenPos().Y);
                     feedVirtualizer.Record(post.Id, revision);
                 }
 
@@ -893,7 +898,7 @@ internal sealed partial class AethergramApp : IPhoneApp
         else if (!overRing && UiInteract.HoverClick(new Vector2(innerX, origin.Y + pad),
                 new Vector2(origin.X + width - pad - 30f * scale, origin.Y + pad + headerBlock)))
         {
-            OpenProfile(post.AuthorId);
+            OpenProfileFromPost(post.AuthorId, post.Id);
         }
 
         var moreCenter = new Vector2(origin.X + width - pad - 6f * scale, avatarCenter.Y);
@@ -1282,6 +1287,12 @@ internal sealed partial class AethergramApp : IPhoneApp
         router.Push(AethergramRoute.Profile(userId));
     }
 
+    private void OpenProfileFromPost(string userId, string postId)
+    {
+        store.ReportFeedSignal(postId, FeedSignalKinds.ProfileOpen);
+        OpenProfile(userId);
+    }
+
     private void DrawRichBody(ImDrawListPtr drawList, RichTextLayout layout, Vector2 origin)
     {
         var ink = new RichTextInk(AppPalettes.Aethergram.BodyInk, AppPalettes.Aethergram.Accent,
@@ -1295,6 +1306,7 @@ internal sealed partial class AethergramApp : IPhoneApp
 
     private void OpenDetail(PostDto post, bool focusComment = false)
     {
+        store.ReportFeedSignal(post.Id, FeedSignalKinds.DetailOpen);
         store.OpenDetail(post);
         commentDraft = string.Empty;
         commentFocusPending = focusComment;

@@ -193,6 +193,7 @@ internal sealed partial class VelvetShell : IPhoneApp
 
     public void OnClosed()
     {
+        store.FlushFeedSignals();
         router.Reset();
         postMenu.Close();
         avatarLightbox.Reset();
@@ -507,6 +508,12 @@ internal sealed partial class VelvetShell : IPhoneApp
         {
             OpenProfile(layout.Mentions[hit.TargetIndex].UserId);
         }
+    }
+
+    private void OpenProfileFromPost(string userId, string postId)
+    {
+        store.ReportFeedSignal(postId, FeedSignalKinds.ProfileOpen);
+        OpenProfile(userId);
     }
 
     private void OpenProfile(string userId)

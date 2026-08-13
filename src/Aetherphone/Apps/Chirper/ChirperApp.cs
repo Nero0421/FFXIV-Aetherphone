@@ -195,6 +195,7 @@ internal sealed partial class ChirperApp : IPhoneApp
 
     public void OnClosed()
     {
+        store.FlushFeedSignals();
         router.Reset();
         avatarLightbox.Reset();
         draft = string.Empty;
@@ -396,6 +397,8 @@ internal sealed partial class ChirperApp : IPhoneApp
             {
                 ImGui.Dummy(new Vector2(0f, FeedTopPadding * UiScale.Current));
                 feedVirtualizer.BeginFrame(store.FeedSource(scope));
+                var viewportTop = ImGui.GetWindowPos().Y;
+                store.BeginImpressions(viewportTop, viewportTop + ImGui.GetWindowSize().Y, ImGui.GetIO().DeltaTime);
                 renderedUnderlyingIds.Clear();
                 for (var index = 0; index < snapshot.Length; index++)
                 {
@@ -415,7 +418,9 @@ internal sealed partial class ChirperApp : IPhoneApp
                         continue;
                     }
 
+                    var rowTop = ImGui.GetCursorScreenPos().Y;
                     DrawPost(post);
+                    store.ObserveImpression(post.RepostOfId ?? post.Id, rowTop, ImGui.GetCursorScreenPos().Y);
                     feedVirtualizer.Record(post.Id);
                 }
 
@@ -509,7 +514,7 @@ internal sealed partial class ChirperApp : IPhoneApp
             string.Empty, post.AuthorAvatarUrl, 0.95f, 48, Frames.Of(post.AuthorFrameId));
         if (UiInteract.HoverClick(avatarCenter - new Vector2(radius, radius), avatarCenter + new Vector2(radius, radius)))
         {
-            OpenProfile(post.AuthorId);
+            OpenProfileFromPost(post.AuthorId, post.Id);
         }
 
         var nameHovering = UiInteract.Hover(new Vector2(contentLeft, contentTop + pad),
@@ -534,7 +539,7 @@ internal sealed partial class ChirperApp : IPhoneApp
         if (UiInteract.HoverClick(new Vector2(contentLeft, contentTop + pad),
                 new Vector2(contentRight - 24f * scale, contentTop + pad + nameSize.Y)))
         {
-            OpenProfile(post.AuthorId);
+            OpenProfileFromPost(post.AuthorId, post.Id);
         }
 
         if (post.Text.Length > 0 && bodyLayout is null)
@@ -1518,6 +1523,12 @@ internal sealed partial class ChirperApp : IPhoneApp
         router.Push(ChirperRoute.Profile(userId));
     }
 
+    private void OpenProfileFromPost(string userId, string postId)
+    {
+        store.ReportFeedSignal(postId, FeedSignalKinds.ProfileOpen);
+        OpenProfile(userId);
+    }
+
     private void DrawRichBody(ImDrawListPtr drawList, RichTextLayout layout, Vector2 origin)
     {
         var ink = new RichTextInk(AppPalettes.Chirper.BodyInk, AppPalettes.Chirper.Accent, AppPalettes.Chirper.Accent);
@@ -1592,6 +1603,7 @@ internal sealed partial class ChirperApp : IPhoneApp
     {
         actions.Reset();
         commentDraft = string.Empty;
+        store.ReportFeedSignal(post.Id, FeedSignalKinds.DetailOpen);
         store.OpenDetail(post);
         router.Push(ChirperRoute.Thread(post.Id));
     }

@@ -100,6 +100,8 @@ internal sealed class VelvetStore : ChatThreadStoreBase<VelvetMessageDto, Velvet
     private volatile bool loadingNotInterested;
     private Task? notInterestedIdsLoadTask;
     private readonly object notInterestedIdsSync = new();
+    private readonly FeedImpressions impressions = new();
+    private readonly FeedSignalQueue feedSignals;
 
     public VelvetStore(AethernetSession session, VelvetClient client, AccountClient account, SafetyClient safety,
         MediaClient media, NotificationService notifications, Configuration configuration, KeyVault vault,
@@ -112,6 +114,7 @@ internal sealed class VelvetStore : ChatThreadStoreBase<VelvetMessageDto, Velvet
         this.configuration = configuration;
         this.signals = signals;
         this.notInterestedArchive = notInterestedArchive;
+        feedSignals = new FeedSignalQueue(client.ReportSeenAsync, client.ReportSignalAsync, work);
         signals.VelvetPinged += OnVelvetPinged;
         signals.SocialPinged += OnSocialPinged;
         signals.ConnectedChanged += OnRealtimeConnected;
@@ -157,6 +160,30 @@ internal sealed class VelvetStore : ChatThreadStoreBase<VelvetMessageDto, Velvet
     }
 
     public MentionSuggestions NewMentionSuggestions() => new(account, work);
+
+    public void BeginImpressions(float windowTop, float windowBottom, float deltaSeconds)
+    {
+        impressions.BeginFrame(windowTop, windowBottom, deltaSeconds);
+        feedSignals.Tick(DateTime.UtcNow);
+    }
+
+    public void ObserveImpression(string postId, float rowTop, float rowBottom)
+    {
+        if (impressions.Observe(postId, rowTop, rowBottom))
+        {
+            feedSignals.MarkSeen(postId);
+        }
+    }
+
+    public void ReportFeedSignal(string postId, int kind)
+    {
+        feedSignals.Signal(postId, kind);
+    }
+
+    public void FlushFeedSignals()
+    {
+        feedSignals.Flush(DateTime.UtcNow);
+    }
 
     public VelvetProfileDto? Me => me;
     public bool AccessBlocked => accessBlocked;
